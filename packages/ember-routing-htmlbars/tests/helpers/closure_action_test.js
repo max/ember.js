@@ -2,7 +2,7 @@ import Ember from 'ember-metal/core';
 import isEnabled from 'ember-metal/features';
 import run from 'ember-metal/run_loop';
 import compile from 'ember-template-compiler/system/compile';
-import EmberComponent from 'ember-views/views/component';
+import EmberComponent from 'ember-views/components/component';
 import { computed } from 'ember-metal/computed';
 
 import {

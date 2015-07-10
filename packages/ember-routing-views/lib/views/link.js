@@ -10,7 +10,7 @@ import { get } from 'ember-metal/property_get';
 import { set } from 'ember-metal/property_set';
 import { computed } from 'ember-metal/computed';
 import { isSimpleClick } from 'ember-views/system/utils';
-import EmberComponent from 'ember-views/views/component';
+import EmberComponent from 'ember-views/components/component';
 import inject from 'ember-runtime/inject';
 import ControllerMixin from 'ember-runtime/mixins/controller';
 
