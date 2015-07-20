@@ -61,40 +61,46 @@ ChainWatchers.prototype = {
     return false;
   },
 
-  finishAllChains() {
+  revalidateAll() {
     for (let key in this.nodes) {
-      this.finishChains(key);
+      this.notify(key, true, undefined);
     }
   },
 
-  finishChains(key) {
-    let nodes = this.nodes[key];
-    if (nodes && nodes.length) {
-      for (var i = 0, l = nodes.length; i < l; i++) {
-        nodes[i].didChange(null);
-      }
-    }
+  revalidate(key) {
+    this.notify(key, true, undefined);
   },
 
-  willChange(key) {
+  // key: the string key that is part of a path changed
+  // revalidate: boolean the chains that are watching this value should revalidate
+  // callback: function that will be called with the the object and path that
+  //           will be/are invalidated by this key change depending on the
+  //           whether the revalidate flag is passed
+  notify(key, revalidate, callback) {
     let nodes = this.nodes[key];
-    if (nodes && nodes.length) {
-      let events = [];
-      for (var i = 0, l = nodes.length; i < l; i++) {
-        nodes[i].willChange(events);
-      }
-      return events;
+    if (nodes === undefined || nodes.length === 0) {
+      return;
     }
-  },
 
-  didChange(key) {
-    let nodes = this.nodes[key];
-    if (nodes && nodes.length) {
-      let events = [];
-      for (var i = 0, l = nodes.length; i < l; i++) {
-        nodes[i].didChange(events);
-      }
-      return events;
+    let affected;
+
+    if (callback) {
+      affected = [];
+    }
+
+    for (let i = 0, l = nodes.length; i < l; i++) {
+      nodes[i].notify(revalidate, affected);
+    }
+
+    if (callback === undefined) {
+      return;
+    }
+
+    // we gather callbacks so we don't notify them during revalidation
+    for (let i = 0, l = affected.length; i < l; i += 2) {
+      let obj  = affected[i];
+      let path = affected[i + 1];
+      callback(obj, path);
     }
   }
 };
@@ -356,44 +362,8 @@ ChainNode.prototype = {
     }
   },
 
-  willChange(events) {
-    var chains = this._chains;
-    var node;
-    if (chains) {
-      for (var key in chains) {
-        node = chains[key];
-        if (node !== undefined) {
-          node.willChange(events);
-        }
-      }
-    }
-
-    if (this._parent) {
-      this._parent.notifyChainChange(this, this._key, 1, events);
-    }
-  },
-
-  notifyChainChange(chain, path, depth, events) {
-    if (this._key) {
-      path = this._key + '.' + path;
-    }
-
-    if (this._parent) {
-      this._parent.notifyChainChange(this, path, depth + 1, events);
-    } else {
-      if (depth > 1) {
-        events.push(this.value(), path);
-      }
-      path = 'this.' + path;
-      if (this._paths[path] > 0) {
-        events.push(this.value(), path);
-      }
-    }
-  },
-
-  didChange(events) {
-    // invalidate my own value first.
-    if (this._watching) {
+  notify(revalidate, affected) {
+    if (revalidate && this._watching) {
       var obj = this._parent.value();
       if (obj !== this._object) {
         removeChainWatcher(this._object, this._key, this);
@@ -416,19 +386,31 @@ ChainNode.prototype = {
       for (var key in chains) {
         node = chains[key];
         if (node !== undefined) {
-          node.didChange(events);
+          node.notify(revalidate, affected);
         }
       }
     }
 
-    // if no events are passed in then we only care about the above wiring update
-    if (events === null) {
-      return;
+    if (affected && this._parent) {
+      this._parent.populateAffected(this, this._key, 1, affected);
+    }
+  },
+
+  populateAffected(chain, path, depth, affected) {
+    if (this._key) {
+      path = this._key + '.' + path;
     }
 
-    // and finally tell parent about my path changing...
     if (this._parent) {
-      this._parent.notifyChainChange(this, this._key, 1, events);
+      this._parent.populateAffected(this, path, depth + 1, affected);
+    } else {
+      if (depth > 1) {
+        affected.push(this.value(), path);
+      }
+      path = 'this.' + path;
+      if (this._paths[path] > 0) {
+        affected.push(this.value(), path);
+      }
     }
   }
 };
@@ -440,7 +422,7 @@ export function finishChains(obj) {
     // finish any current chains node watchers that reference obj
     let chainWatchers = m.chainWatchers;
     if (chainWatchers) {
-      chainWatchers.finishAllChains();
+      chainWatchers.revalidateAll();
     }
     // copy chains from prototype
     let chains = m.chains;

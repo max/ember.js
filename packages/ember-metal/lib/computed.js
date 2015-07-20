@@ -327,7 +327,7 @@ ComputedPropertyPrototype.get = function(obj, keyName) {
     }
 
     if (meta.chainWatchers) {
-      meta.chainWatchers.finishChains(keyName);
+      meta.chainWatchers.revalidate(keyName);
     }
     addDependentKeys(this, obj, keyName, meta);
   } else {

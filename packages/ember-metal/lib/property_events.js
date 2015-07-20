@@ -195,12 +195,7 @@ function chainsWillChange(obj, keyName, m) {
     return;
   }
 
-  let events = m.chainWatchers.willChange(keyName);
-  if (events) {
-    for (let i = 0, l = events.length; i < l; i += 2) {
-      propertyWillChange(events[i], events[i + 1]);
-    }
-  }
+  m.chainWatchers.notify(keyName, false, propertyWillChange);
 }
 
 function chainsDidChange(obj, keyName, m) {
@@ -208,19 +203,14 @@ function chainsDidChange(obj, keyName, m) {
     return;
   }
 
-  let events = m.chainWatchers.didChange(keyName);
-  if (events) {
-    for (let i = 0, l = events.length; i < l; i += 2) {
-      propertyDidChange(events[i], events[i + 1]);
-    }
-  }
+  m.chainWatchers.notify(keyName, true, propertyDidChange);
 }
 
 function overrideChains(obj, keyName, m) {
   if (m.chainWatchers === undefined || m.chainWatchers.src !== obj) {
     return;
   }
-  m.chainWatchers.finishChains(keyName);
+  m.chainWatchers.revalidate(keyName);
 }
 
 /**
