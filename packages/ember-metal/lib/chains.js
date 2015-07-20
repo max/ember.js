@@ -21,6 +21,84 @@ function Chains() { }
 
 Chains.prototype = Object.create(null);
 
+// a map of nodes that reference a key
+function ChainWatchers(src) {
+  this.src = src;
+  this.nodes = Object.create(null);
+}
+
+ChainWatchers.prototype = {
+  add(key, node) {
+    let nodes = this.nodes[key];
+    if (nodes === undefined) {
+      this.nodes[key] = [node];
+    } else {
+      nodes.push(node);
+    }
+  },
+
+  remove(key, node) {
+    let nodes = this.nodes[key];
+    if (nodes) {
+      for (var i = 0, l = nodes.length; i < l; i++) {
+        if (nodes[i] === node) {
+          nodes.splice(i, 1);
+          break;
+        }
+      }
+    }
+  },
+
+  has(key, node) {
+    let nodes = this.nodes[key];
+    if (nodes) {
+      for (var i = 0, l = nodes.length; i < l; i++) {
+        if (nodes[i] === node) {
+          return true;
+        }
+      }
+    }
+    return false;
+  },
+
+  finishAllChains() {
+    for (let key in this.nodes) {
+      this.finishChains(key);
+    }
+  },
+
+  finishChains(key) {
+    let nodes = this.nodes[key];
+    if (nodes && nodes.length) {
+      for (var i = 0, l = nodes.length; i < l; i++) {
+        nodes[i].didChange(null);
+      }
+    }
+  },
+
+  willChange(key) {
+    let nodes = this.nodes[key];
+    if (nodes && nodes.length) {
+      let events = [];
+      for (var i = 0, l = nodes.length; i < l; i++) {
+        nodes[i].willChange(events);
+      }
+      return events;
+    }
+  },
+
+  didChange(key) {
+    let nodes = this.nodes[key];
+    if (nodes && nodes.length) {
+      let events = [];
+      for (var i = 0, l = nodes.length; i < l; i++) {
+        nodes[i].didChange(events);
+      }
+      return events;
+    }
+  }
+};
+
 var pendingQueue = [];
 
 // attempts to add the pendingQueue chains again. If some of them end up
@@ -48,19 +126,13 @@ function addChainWatcher(obj, keyName, node) {
     return;
   }
 
-  var m = metaFor(obj);
-  var nodes = m.chainWatchers;
+  let m = metaFor(obj);
 
-  // TODO remove hasOwnProperty check
-  if (nodes === undefined || !m.hasOwnProperty('chainWatchers')) {
-    nodes = m.chainWatchers = new Chains();
+  if (m.chainWatchers === undefined || m.chainWatchers.src !== obj) {
+    m.chainWatchers = new ChainWatchers(obj);
   }
 
-  if (!nodes[keyName]) {
-    nodes[keyName] = [node];
-  } else {
-    nodes[keyName].push(node);
-  }
+  m.chainWatchers.add(keyName, node);
 
   watchKey(obj, keyName, m);
 }
@@ -70,20 +142,18 @@ function removeChainWatcher(obj, keyName, node) {
     return;
   }
 
-  var m = obj['__ember_meta__'];
-  if (m && !m.hasOwnProperty('chainWatchers')) { return; } // nothing to do
+  let m = obj.__ember_meta__;
 
-  var nodes = m && m.chainWatchers;
-
-  if (nodes && nodes[keyName]) {
-    nodes = nodes[keyName];
-    for (var i = 0, l = nodes.length; i < l; i++) {
-      if (nodes[i] === node) {
-        nodes.splice(i, 1);
-        break;
-      }
-    }
+  if (!m ||
+      m.chainWatchers === undefined || m.chainWatchers.src !== obj) {
+    return;
   }
+
+  // make meta writable
+  m = metaFor(obj);
+
+  m.chainWatchers.remove(keyName, node);
+
   unwatchKey(obj, keyName, m);
 }
 
@@ -365,29 +435,18 @@ ChainNode.prototype = {
 
 export function finishChains(obj) {
   // We only create meta if we really have to
-  var m = obj['__ember_meta__'];
-  var chains, chainWatchers, chainNodes;
-
+  let m = obj.__ember_meta__;
   if (m) {
     // finish any current chains node watchers that reference obj
-    chainWatchers = m.chainWatchers;
+    let chainWatchers = m.chainWatchers;
     if (chainWatchers) {
-      for (var key in chainWatchers) {
-        chainNodes = chainWatchers[key];
-        if (chainNodes) {
-          for (var i = 0, l = chainNodes.length; i < l; i++) {
-            var node = chainNodes[i];
-            if (node) {
-              node.didChange(null);
-            }
-          }
-        }
-      }
+      chainWatchers.finishAllChains();
     }
     // copy chains from prototype
-    chains = m.chains;
+    let chains = m.chains;
     if (chains && chains.value() !== obj) {
-      metaFor(obj).chains = chains = chains.copy(obj);
+      // need to check if meta is writable
+      metaFor(obj).chains = chains.copy(obj);
     }
   }
 }
