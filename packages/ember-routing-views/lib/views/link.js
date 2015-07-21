@@ -433,7 +433,10 @@ var LinkComponent = EmberComponent.extend({
       var value = params[i];
 
       while (ControllerMixin.detect(value)) {
-        Ember.deprecate('Providing `{{link-to}}` with a param that is wrapped in a controller is deprecated. Please update `' + attrs.view + '` to use `{{link-to "post" someController.model}}` instead.');
+        Ember.deprecate(
+          'Providing `{{link-to}}` with a param that is wrapped in a controller is deprecated. Please update `' + attrs.view + '` to use `{{link-to "post" someController.model}}` instead.',
+          { id: 'ember-routing-views.controller-mixin', until: '3.0.0' }
+        );
         value = value.get('model');
       }
 
